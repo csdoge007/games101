@@ -1,0 +1,143 @@
+<!--
+ * @Descripttion: 
+ * @version: 
+ * @Author: Jsonco
+ * @Date: 2022-05-25 19:54:25
+ * @LastEditors: sueRimn
+ * @LastEditTime: 2022-07-15 19:52:52
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="gl-matrix.js"></script>
+    <script>
+        //        作业描述： 
+        //        给定一个点 P=(2,1), 将该点绕原点先逆时针旋转 45◦，再平移 (1,2), 计算出
+        // 变换后点的坐标（要求用齐次坐标进行计算）。
+        let vertexstring = `
+        attribute vec4 a_position;
+        uniform mat4 uniformProjMat4;
+        uniform mat4 uniformModelMatrix;
+        void main(void){
+            gl_Position = uniformProjMat4 * uniformModelMatrix * a_position;
+            gl_PointSize = 10.0;
+        }
+        `;
+        let fragmentstring = `
+        precision mediump float;
+        void main(void){
+          gl_FragColor =vec4(1.0,1.0,0.0,1.0);
+        }
+        `;
+        var webgl;
+        function webglStart() {
+            init();
+            tick();
+        }
+        function tick() {
+            requestAnimFrame(tick)
+            draw();
+        };
+        function init() {
+            initWebgl();
+            initShader();
+            initBuffer();
+            draw();
+        }
+        function initWebgl() {
+            let webglDiv = document.getElementById('myCanvas');
+            webgl = webglDiv.getContext("webgl");
+            webgl.viewport(0, 0, webglDiv.clientWidth, webglDiv.clientHeight);
+            //mat4.ortho(0, webglDiv.clientWidth, webglDiv.clientHeight, 0, -1.0, 1.0, projMat4)
+        }
+        function initShader() {
+
+            let vsshader = webgl.createShader(webgl.VERTEX_SHADER);
+            let fsshader = webgl.createShader(webgl.FRAGMENT_SHADER);
+
+            webgl.shaderSource(vsshader, vertexstring);
+            webgl.shaderSource(fsshader, fragmentstring);
+
+            webgl.compileShader(vsshader);
+            webgl.compileShader(fsshader);
+            if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+                var err = webgl.getShaderInfoLog(vsshader);
+                alert(err);
+                return;
+            }
+            if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+                var err = webgl.getShaderInfoLog(fsshader);
+                alert(err);
+                return;
+            }
+            let program = webgl.createProgram();
+            webgl.attachShader(program, vsshader);
+            webgl.attachShader(program, fsshader)
+
+            webgl.linkProgram(program);
+            webgl.useProgram(program);
+
+            webgl.program = program
+        }
+        function initBuffer() {
+            let uniformProjMat4 = webgl.getUniformLocation(webgl.program, "uniformProjMat4")
+
+            let projMat4 = glMatrix.mat4.create()
+            glMatrix.mat4.ortho(projMat4, -10, 10, -10, 10, -1.0, 1.0)
+            let a_Position = webgl.getAttribLocation(webgl.program, "a_position");
+            webgl.vertexAttrib4f(a_Position, 2.0, 1.0, 0.0, 1.0);
+
+            let uniformModelMatrix = webgl.getUniformLocation(webgl.program, "uniformModelMatrix")
+            let modelMatrix = glMatrix.mat4.create()
+
+            let rotateMatrix = glMatrix.mat4.create()
+            rotateMatrix[0] = Math.cos(Math.PI / 4)
+            rotateMatrix[1] = Math.sin(Math.PI / 4)
+            rotateMatrix[4] = -Math.sin(Math.PI / 4)
+            rotateMatrix[5] = Math.cos(Math.PI / 4)
+            let moveMatrix = glMatrix.mat4.create()
+            moveMatrix[12] = 1.0
+            moveMatrix[13] = 2.0
+            glMatrix.mat4.multiply(modelMatrix, moveMatrix, rotateMatrix)
+            webgl.uniformMatrix4fv(uniformProjMat4, false, projMat4);
+            webgl.uniformMatrix4fv(uniformModelMatrix, false, modelMatrix);
+
+            let vector = glMatrix.vec4.fromValues(2.0,1.0,0.0,1.0)
+            let result = glMatrix.vec4.create();
+            glMatrix.mat4.multiply(result,modelMatrix,vector)
+            console.log('x = ',result[0])
+            console.log('y = ',result[1])
+        }
+
+        function draw() {
+            
+
+            webgl.clearColor(0.0, 1.0, 0.0, 1.0);
+            webgl.clear(webgl.COLOR_BUFFER_BIT | webgl.DEPTH_BUFFER_BIT);
+            webgl.enable(webgl.DEPTH_TEST);
+            webgl.drawArrays(webgl.POINTS, 0, 1);
+        }
+        window.requestAnimFrame = (function () {
+            return window.requestAnimationFrame ||
+                window.webkitRequestAnimationFrame ||
+                window.mozRequestAnimationFrame ||
+                window.oRequestAnimationFrame ||
+                window.msRequestAnimationFrame ||
+                function (callback, element) {
+                    window.setTimeout(callback, 1000 / 60);
+                };
+        })();
+    </script>
+</head>
+
+<body onload="webglStart()">
+    <canvas id='myCanvas' width="1024" height='768'></canvas>
+    <div id="text"></div>
+</body>
+
+</html>

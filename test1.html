@@ -1,0 +1,204 @@
+<!--
+ * @Descripttion: 
+ * @version: 
+ * @Author: Jsonco
+ * @Date: 2022-05-25 19:54:25
+ * @LastEditors: sueRimn
+ * @LastEditTime: 2022-07-15 19:52:52
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="gl-matrix.js"></script>
+    <script>
+        //        作业描述： 
+        // 绘制一个三角形v0(2.0,0.0,-2.0),v1(0.0,2.0,-2.0),v2(-2.0,0.0,-2.0)
+        // 手写旋转矩阵和透视投影矩阵，按'A'键使得三角形旋转20度
+        let vertexstring = `
+        attribute vec4 a_position;
+        uniform mat4 uniformProjMat4;
+        uniform mat4 uniformModelMatrix;
+        void main(void){
+            gl_Position = uniformProjMat4 * uniformModelMatrix *  a_position;
+        }
+        `;
+        let fragmentstring = `
+        precision mediump float;
+        void main(void){
+          gl_FragColor =vec4(1.0,1.0,0.0,1.0);
+        }
+        `;
+        var webgl
+        let webglDiv
+        let g_Angle = 0
+        function webglStart() {
+            init();
+            tick();
+        }
+        function tick() {
+            requestAnimFrame(tick)
+            draw();
+        };
+        function init() {
+            initWebgl();
+            initEvent();
+            initShader();
+            initBuffer();
+            draw();
+        }
+        function initEvent() {
+            document.onkeydown = keydown;
+        }
+        function keydown(ev) {
+            if(ev.keyCode == 65) {
+                g_Angle += 20
+                initBuffer()
+                draw()
+            }
+        }
+        function initWebgl() {
+            webglDiv = document.getElementById('myCanvas');
+            webgl = webglDiv.getContext("webgl");
+            webgl.viewport(0, 0, webglDiv.clientWidth, webglDiv.clientHeight);
+        }
+        function initShader() {
+
+            let vsshader = webgl.createShader(webgl.VERTEX_SHADER);
+            let fsshader = webgl.createShader(webgl.FRAGMENT_SHADER);
+
+            webgl.shaderSource(vsshader, vertexstring);
+            webgl.shaderSource(fsshader, fragmentstring);
+
+            webgl.compileShader(vsshader);
+            webgl.compileShader(fsshader);
+            if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+                var err = webgl.getShaderInfoLog(vsshader);
+                alert(err);
+                return;
+            }
+            if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+                var err = webgl.getShaderInfoLog(fsshader);
+                alert(err);
+                return;
+            }
+            let program = webgl.createProgram();
+            webgl.attachShader(program, vsshader);
+            webgl.attachShader(program, fsshader)
+
+            webgl.linkProgram(program);
+            webgl.useProgram(program);
+
+            webgl.program = program
+        }
+        // 手写透视投影矩阵
+        function perspective(out,fovy,aspect,near,far) {
+            let f = 1 / Math.tan(fovy / 2)
+            out[0] = f / aspect
+            out[1] = 0
+            out[2] = 0
+            out[3] = 0
+            out[4] = 0
+            out[5] = f
+            out[6] = 0
+            out[7] = 0
+            out[8] = 0
+            out[9] = 0
+            out[10] = (near + far) / (near - far)
+            out[11] = -1
+            out[12] = 0
+            out[13] = 0
+            out[14] = 2 * near * far / (near - far)
+            out[15] = 0
+            return out
+        }
+        function rotate(out, rad, axis) {
+            let s = Math.sin(rad)
+            let c = Math.cos(rad)
+            if(axis == 'x') {
+                out[5] = c
+                out[6] = s
+                out[9] = -s
+                out[10] = c
+            } else if(axis == 'y') {
+                out[0] = c
+                out[2] = -s
+                out[8] = s
+                out[10] = c
+            } else {
+                out[0] = c
+                out[1] = s
+                out[4] = -s
+                out[5] = c
+            }
+            return out
+        }
+        function initBuffer() {
+
+
+            let uniformProjMat4 = webgl.getUniformLocation(webgl.program, "uniformProjMat4")
+
+            let projMat4 = glMatrix.mat4.create()
+            glMatrix.mat4.identity(projMat4);
+            // glMatrix.mat4.ortho(projMat4, -10, 10, -10, 10, -1.0, 1.0)
+            perspective(projMat4, 45 * 3 * Math.PI / 180, webglDiv.clientWidth / webglDiv.clientHeight, 0.2, 1000)
+
+            let arr = [
+                2.0,0.0,-2.0,1.0,
+                0.0,2.0,-2.0,1.0,
+                -2.0,0.0,-2.0,1.0
+            ]
+            let pointPosition = new Float32Array(arr);
+            let a_Position = webgl.getAttribLocation(webgl.program, "a_position");
+            let triangleBuffer = webgl.createBuffer();
+            webgl.bindBuffer(webgl.ARRAY_BUFFER, triangleBuffer);
+            webgl.bufferData(webgl.ARRAY_BUFFER, pointPosition, webgl.STATIC_DRAW);
+            webgl.enableVertexAttribArray(a_Position);
+            webgl.vertexAttribPointer(a_Position, 4, webgl.FLOAT, false, 4 * 4, 0);
+
+
+
+
+
+            let uniformModelMatrix = webgl.getUniformLocation(webgl.program, "uniformModelMatrix")
+            let modelMatrix = glMatrix.mat4.create()
+            glMatrix.mat4.identity(modelMatrix);
+            rotate(modelMatrix,g_Angle * Math.PI / 180,'z')
+
+            webgl.uniformMatrix4fv(uniformProjMat4, false, projMat4);
+            webgl.uniformMatrix4fv(uniformModelMatrix, false, modelMatrix);
+
+
+        }
+
+        function draw() {
+            
+
+            webgl.clearColor(0.0, 1.0, 0.0, 1.0);
+            webgl.clear(webgl.COLOR_BUFFER_BIT | webgl.DEPTH_BUFFER_BIT);
+            webgl.enable(webgl.DEPTH_TEST);
+            webgl.drawArrays(webgl.TRIANGLES, 0, 3);
+        }
+        window.requestAnimFrame = (function () {
+            return window.requestAnimationFrame ||
+                window.webkitRequestAnimationFrame ||
+                window.mozRequestAnimationFrame ||
+                window.oRequestAnimationFrame ||
+                window.msRequestAnimationFrame ||
+                function (callback, element) {
+                    window.setTimeout(callback, 1000 / 60);
+                };
+        })();
+    </script>
+</head>
+
+<body onload="webglStart()">
+    <canvas id='myCanvas' width="1024" height='768'></canvas>
+    <div id="text"></div>
+</body>
+
+</html>
